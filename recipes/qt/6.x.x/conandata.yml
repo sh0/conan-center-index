@@ -75,3 +75,7 @@ patches:
       patch_file: "patches/32451d5.diff"
     - base_path: "qt6/qtbase/cmake"
       patch_file: "patches/qt6-pri-helpers-fix.diff"
+    - base_path: "qt6/qtbase/cmake"
+      patch_file: "patches/qt6-imported-global-fix.diff"
+    - base_path: "qt6/qtbase/src/plugins/platforms/cocoa"
+      patch_file: "patches/qt6-qcocoawindow-qhash-fix.diff"

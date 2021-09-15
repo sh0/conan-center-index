@@ -1,3 +1,8 @@
+Fixes CMake infinite loop when configuring with Vulkan enabled.
+
+Keep this patch enabled for new versions until upstream issue is fixed:
+  https://bugreports.qt.io/browse/QTBUG-95569
+
 --- QtPriHelpers.cmake.original	2021-08-03 23:38:06.343653948 +0300
 +++ QtPriHelpers.cmake	2021-08-03 23:26:24.483637483 +0300
 @@ -30,7 +30,11 @@

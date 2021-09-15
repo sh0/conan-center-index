@@ -1,0 +1,17 @@
+Fixes issue where Qt tries to promote Conan IMPORTED library targets to global space when this is not permitted.
+
+CMake 3.21.x will throw errors for expat library target.
+
+--- QtFindPackageHelpers.cmake	2021-09-14 13:21:48.419864509 +0300
++++ QtFindPackageHelpers.cmake	2021-09-14 13:34:20.945966324 +0300
+@@ -165,8 +165,8 @@
+                 if(NOT is_global AND NOT should_not_promote)
+                     set_property(TARGET ${qt_find_package_target_name} PROPERTY
+                                                                        IMPORTED_GLOBAL TRUE)
+-                    qt_find_package_promote_targets_to_global_scope(
+-                        "${qt_find_package_target_name}")
++                    #qt_find_package_promote_targets_to_global_scope(
++                    #    "${qt_find_package_target_name}")
+                 endif()
+             endif()
+ 

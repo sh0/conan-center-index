@@ -1,0 +1,15 @@
+Fixes missing QHash header include to fix compilation on macOS with OpenGL disabled.
+
+Keep this patch enabled for new versions until upstream issue is fixed:
+  https://bugreports.qt.io/browse/QTBUG-96621
+
+--- qcocoawindow.h.ori	2021-09-15 16:17:29.475581556 +0300
++++ qcocoawindow.h	2021-09-15 16:17:54.888580776 +0300
+@@ -44,6 +44,7 @@
+ #include <qpa/qplatformwindow_p.h>
+ #include <QRect>
+ #include <QPointer>
++#include <QHash>
+ 
+ #ifndef QT_NO_OPENGL
+ #include "qcocoaglcontext.h"
