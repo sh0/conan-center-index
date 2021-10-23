@@ -49,8 +49,8 @@ class GtkConan(ConanFile):
     @property
     def _gtk4(self):
         return tools.Version("4.0.0") <= tools.Version(self.version) < tools.Version("5.0.0")
-    @property
 
+    @property
     def _gtk3(self):
         return tools.Version("3.0.0") <= tools.Version(self.version) < tools.Version("4.0.0")
 
@@ -74,18 +74,16 @@ class GtkConan(ConanFile):
             if self.options.with_wayland or self.options.with_x11:
                 if not self.options.with_pango:
                     raise ConanInvalidConfiguration("with_pango option is mandatory when with_wayland or with_x11 is used")
-        if self.settings.os == "Windows":
-            raise ConanInvalidConfiguration("GTK recipe is not yet compatible with Windows. Contributions are welcome.")
 
     def build_requirements(self):
-        self.build_requires("meson/0.59.1")
+        self.build_requires("meson/0.59.2")
         self.build_requires("pkgconf/1.7.4")
         if self._gtk4:
             self.build_requires("sassc/3.6.2")
 
     def requirements(self):
         self.requires("gdk-pixbuf/2.42.4")
-        self.requires("glib/2.69.3")
+        self.requires("glib/2.70.0")
         if self.settings.compiler != "Visual Studio":
             self.requires("cairo/1.17.4")
         if self._gtk4:
@@ -107,9 +105,11 @@ class GtkConan(ConanFile):
         if self.options.with_pango:
             self.requires("pango/1.49.1")
         if self.options.with_ffmpeg:
-            self.requires("ffmpeg/4.2.1")
+            self.requires("ffmpeg/4.4")
         if self.options.with_gstreamer:
-            self.requires("gstreamer/1.19.1")
+            self.requires("gstreamer/1.19.2")
+            self.requires("gst-plugins-base/1.19.2")
+        self.requires("freetype/2.11.0", override=True) # TODO: remove
 
     def source(self):
         tools.get(**self.conan_data["sources"][self.version], strip_root=True, destination=self._source_subfolder)
