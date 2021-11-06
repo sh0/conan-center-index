@@ -1,0 +1,41 @@
+All changes (except add_library SHARED removal) are in some form incorporated in the latest git master.
+Hence target installation/find_package are patched instead of doing that in CMake wrapper. @sh0
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 6fb182e..4999c58 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -42,12 +42,18 @@ option(OPTICK_BUILD_CONSOLE_SAMPLE "Build Optick console sample app" ${standalon
+ 
+ 
+ # OptickCore
+-add_library(OptickCore SHARED ${OPTICK_SRC})
++add_library(OptickCore ${OPTICK_SRC})
++set_target_properties(OptickCore
++	PROPERTIES
++		PUBLIC_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/src/optick.h;${CMAKE_CURRENT_SOURCE_DIR}/src/optick.config.h"
++		DEBUG_POSTFIX d # So that we can install debug and release side by side
++)
+ target_include_directories(OptickCore PUBLIC "src")
+ target_compile_definitions(OptickCore PUBLIC OPTICK_EXPORTS=1)
+ if(OPTICK_USE_VULKAN)
+ 	message(STATUS "Optick uses Vulkan")
+-	target_include_directories(OptickCore PRIVATE "$(VULKAN_SDK)/Include")
++	find_package(Vulkan REQUIRED)
++	target_link_libraries(OptickCore PUBLIC Vulkan::Vulkan)
+ else()
+ 	target_compile_definitions(OptickCore PRIVATE OPTICK_ENABLE_GPU_VULKAN=0)
+ endif()
+@@ -89,3 +95,12 @@ if(OPTICK_BUILD_CONSOLE_SAMPLE)
+ 	set_target_properties(ConsoleApp PROPERTIES FOLDER Samples)
+ endif()
+ 
++# Backport installation
++include(CMakePackageConfigHelpers)
++include(GNUInstallDirs)
++install(TARGETS OptickCore
++	RUNTIME  DESTINATION ${CMAKE_INSTALL_BINDIR}
++	LIBRARY  DESTINATION ${CMAKE_INSTALL_LIBDIR}
++	ARCHIVE  DESTINATION ${CMAKE_INSTALL_LIBDIR}
++	PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
++)
