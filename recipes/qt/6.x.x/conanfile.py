@@ -48,6 +48,33 @@ class QtConan(ConanFile):
                    "qtmultimedia", "qtlocation", "qtsensors", "qtconnectivity", "qtserialbus",
                    "qtserialport", "qtwebsockets", "qtwebchannel", "qtwebengine", "qtwebview",
                    "qtremoteobjects", "qtpositioning"]
+    _features = ["concurrent", "gui", "network", "printsupport", "sql", "testlib", "widgets", "xml"]
+    _dependencies = {
+        "widgets": ["gui"],
+        "printsupport": ["widgets"],
+        "openssl": ["network"],
+        "with_sqlite3": ["sql"],
+        "with_mysql": ["sql"],
+        "with_pq": ["sql"],
+        "with_odbc": ["sql"],
+        "with_brotli": ["network"],
+        "qt3d": ["network", "concurrent"],
+        "qtcoap": ["network"],
+        "qtconnectivity": ["network"],
+        "qttools": ["network", "printsupport", "xml"],
+        "qtmqtt": ["network"],
+        "qtnetworkauth": ["network"],
+        "qtopcua": ["network"],
+        "qtremoteobjects": ["network"],
+        "qtscxml": ["network"],
+        "qtsensors": ["network"],
+        "qtserialbus": ["network"],
+        "qtwebsockets": ["network"],
+        "qtwebengine": ["network"],
+        "qtwebchannel": ["qtwebsockets"],
+        "qtwebview": ["qtwebengine"],
+        "qtdeclarative": ["testlib"],
+    }
 
     generators = "pkg_config", "cmake_find_package", "cmake"
     name = "qt"
@@ -84,15 +111,13 @@ class QtConan(ConanFile):
         "with_gstreamer": [True, False],
         "with_pulseaudio": [True, False],
 
-        "gui": [True, False],
-        "widgets": [True, False],
-
         "device": "ANY",
         "cross_compile": "ANY",
         "sysroot": "ANY",
         "multiconfiguration": [True, False],
     }
     options.update({module: [True, False] for module in _submodules})
+    options.update({feature: [True, False] for feature in _features})
 
     # this significantly speeds up windows builds
     no_copy_source = True
@@ -132,6 +157,7 @@ class QtConan(ConanFile):
         "multiconfiguration": False,
     }
     default_options.update({module: False for module in _submodules})
+    default_options.update({feature: True for feature in _features})
 
     short_paths = True
 
@@ -250,9 +276,6 @@ class QtConan(ConanFile):
             if tools.cross_building(self.settings, skip_x64_x86=True):
                 raise ConanInvalidConfiguration("Cross compiling Qt WebEngine is not supported")
 
-        if self.options.widgets and not self.options.gui:
-            raise ConanInvalidConfiguration("using option qt:widgets without option qt:gui is not possible. "
-                                            "You can either disable qt:widgets or enable qt:gui")
         if self.settings.os == "Android" and self.options.get_safe("opengl", "no") == "desktop":
             raise ConanInvalidConfiguration("OpenGL desktop is not supported on Android.")
 
@@ -266,8 +289,23 @@ class QtConan(ConanFile):
             raise ConanInvalidConfiguration("Qt cannot be built as shared library with static runtime")
 
         if self.options.get_safe("with_pulseaudio", False) or self.options.get_safe("with_libalsa", False):
-            raise ConanInvlidConfiguration("alsa and pulseaudio are not supported (QTBUG-95116), please disable them.")
+            raise ConanInvalidConfiguration("alsa and pulseaudio are not supported (QTBUG-95116), please disable them.")
 
+        for name, module in self._get_module_tree.items():
+            if not self.options.get_safe(name):
+                continue
+            for dependency in module["depends"]:
+                if dependency == "qtbase":
+                    continue
+                if not self.options.get_safe(dependency):
+                    raise ConanInvalidConfiguration("'{}' module requires also '{}' module to be enabled".format(name, dependency))
+
+        for dependency, features in self._dependencies.items():
+            if not self.options.get_safe(dependency):
+                continue
+            for feature in features:
+                if not self.options.get_safe(feature):
+                    raise ConanInvalidConfiguration("'{}' flag requires feature '{}' to be enabled".format(dependency, feature))
 
     def requirements(self):
         self.requires("zlib/1.2.11")
@@ -557,6 +595,8 @@ class QtConan(ConanFile):
         else:
            self._cmake.definitions["FEATURE_dbus"] = "OFF"
 
+        for feature in self._features:
+            self._cmake.definitions["FEATURE_%s" % feature] = ("ON" if self.options.get_safe(feature, True) else "OFF")
 
         for opt, conf_arg in [("with_glib", "glib"),
                               ("with_icu", "icu"),
@@ -564,8 +604,6 @@ class QtConan(ConanFile):
                               ("with_mysql", "sql_mysql"),
                               ("with_pq", "sql_psql"),
                               ("with_odbc", "sql_odbc"),
-                              ("gui", "gui"),
-                              ("widgets", "widgets"),
                               ("with_zstd", "zstd"),
                               ("with_vulkan", "vulkan"),
                               ("with_brotli", "brotli")]:
@@ -931,17 +969,20 @@ class QtConan(ConanFile):
         if self.options.with_odbc:
             if self.settings.os != "Windows":
                 _create_plugin("QODBCDriverPlugin", "qsqlodbc", "sqldrivers", ["odbc::odbc"])
-        networkReqs = []
-        if self.options.openssl:
-            networkReqs.append("openssl::openssl")
-        if self.options.with_brotli:
-            networkReqs.append("brotli::brotli")
-        _create_module("Network", networkReqs)
-        _create_module("Sql")
-        _create_module("Test")
+        if self.options.network:
+            network_requires = []
+            if self.options.openssl:
+                network_requires.append("openssl::openssl")
+            if self.options.with_brotli:
+                network_requires.append("brotli::brotli")
+            _create_module("Network", network_requires)
+        if self.options.sql:
+            _create_module("Sql")
+        if self.options.testlib:
+            _create_module("Test")
         if self.options.widgets:
             _create_module("Widgets", ["Gui"])
-        if self.options.gui and self.options.widgets:
+        if self.options.printsupport and self.options.gui and self.options.widgets:
             _create_module("PrintSupport", ["Gui", "Widgets"])
         if self.options.get_safe("opengl", "no") != "no" and self.options.gui:
             _create_module("OpenGL", ["Gui"])
@@ -949,8 +990,10 @@ class QtConan(ConanFile):
             _create_module("OpenGLWidgets", ["OpenGL", "Widgets"])
         if self.options.with_dbus:
             _create_module("DBus", ["dbus::dbus"])
-        _create_module("Concurrent")
-        _create_module("Xml")
+        if self.options.concurrent:
+            _create_module("Concurrent")
+        if self.options.xml:
+            _create_module("Xml")
 
         if self.options.qt5compat:
             _create_module("Core5Compat")
@@ -969,9 +1012,10 @@ class QtConan(ConanFile):
                     _create_module("QuickWidgets", ["Gui", "Qml", "Quick", "Widgets"])
                 _create_module("QuickShapes", ["Gui", "Qml", "Quick"])
             _create_module("QmlWorkerScript", ["Qml"])
-            _create_module("QuickTest", ["Test"])
+            if self.options.testlib:
+                _create_module("QuickTest", ["Test"])
 
-        if self.options.qttools and self.options.gui and self.options.widgets:
+        if self.options.qttools and self.options.gui and self.options.widgets and self.options.xml:
             self.cpp_info.components["qtLinguistTools"].names["cmake_find_package"] = "LinguistTools"
             self.cpp_info.components["qtLinguistTools"].names["cmake_find_package_multi"] = "LinguistTools"
             _create_module("UiPlugin", ["Gui", "Widgets"])
@@ -979,7 +1023,10 @@ class QtConan(ConanFile):
             self.cpp_info.components["qtUiPlugin"].libdirs = []
             _create_module("UiTools", ["UiPlugin", "Gui", "Widgets"])
             _create_module("Designer", ["Gui", "UiPlugin", "Widgets", "Xml"])
-            _create_module("Help", ["Gui", "Sql", "Widgets"])
+            help_requires = ["Gui", "Widgets"]
+            if self.options.sql:
+                help_requires.append("Sql")
+            _create_module("Help", help_requires)
 
         if self.options.qtquick3d and self.options.gui:
             _create_module("Quick3DUtils", ["Gui"])
@@ -1065,14 +1112,16 @@ class QtConan(ConanFile):
             _create_plugin("QUACppPlugin", "uacpp_backend", "opcua", ["Network", "OpcUa"])
 
         if self.options.get_safe("qtmultimedia"):
-            multimedia_reqs = ["Network", "Gui"]
+            multimedia_requires = ["Gui"]
+            if self.options.network:
+                multimedia_requires.append("Network")
             if self.options.get_safe("with_libalsa", False):
-                multimedia_reqs.append("libalsa::libalsa")
+                multimedia_requires.append("libalsa::libalsa")
             if self.options.with_openal:
-                multimedia_reqs.append("openal::openal")
+                multimedia_requires.append("openal::openal")
             if self.options.get_safe("with_pulseaudio", False):
-                multimedia_reqs.append("pulseaudio::pulse")
-            _create_module("Multimedia", multimedia_reqs)
+                multimedia_requires.append("pulseaudio::pulse")
+            _create_module("Multimedia", multimedia_requires)
             _create_module("MultimediaWidgets", ["Multimedia", "Widgets", "Gui"])
             if self.options.qtdeclarative and self.options.gui:
                 _create_module("MultimediaQuick", ["Multimedia", "Quick"])
@@ -1132,13 +1181,16 @@ class QtConan(ConanFile):
             _create_module("WebChannel", ["Qml"])
 
         if self.options.get_safe("qtwebengine"):
-            webenginereqs = ["Gui", "Quick", "WebChannel", "Positioning"]
+            webengine_requires = ["Gui", "Quick", "WebChannel", "Positioning"]
             if self.settings.os == "Linux":
-                webenginereqs.extend(["expat::expat", "opus::libopus", "xorg-proto::xorg-proto", "libxshmfence::libxshmfence", \
+                webengine_requires.extend(["expat::expat", "opus::libopus", "xorg-proto::xorg-proto", "libxshmfence::libxshmfence", \
                                       "nss::nss", "libdrm::libdrm"])
-            _create_module("WebEngineCore", webenginereqs)
+            _create_module("WebEngineCore", webengine_requires)
             _create_module("WebEngineQuick", ["WebEngineCore"])
-            _create_module("WebEngineWidgets", ["WebEngineCore", "Quick", "PrintSupport", "Widgets", "Gui", "Network"])
+            webenginewidgets_requires = ["WebEngineCore", "Quick", "Widgets", "Gui", "Network"]
+            if self.options.printsupport:
+                webenginewidgets_requires.append("PrintSupport")
+            _create_module("WebEngineWidgets", webenginewidgets_requires)
 
         if self.options.get_safe("qtremoteobjects"):
             _create_module("RemoteObjects")
