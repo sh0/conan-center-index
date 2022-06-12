@@ -12,6 +12,7 @@ class GnuConfigConan(ConanFile):
     url = "https://github.com/conan-io/conan-center-index"
     topics = ("gnu", "config", "autotools", "canonical", "host", "build", "target", "triplet")
     license = "GPL-3.0-or-later", "autoconf-special-exception"
+    settings = "os", "arch", "build_type"
     no_copy_source = True
 
     @property
