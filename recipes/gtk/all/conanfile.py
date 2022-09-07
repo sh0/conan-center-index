@@ -21,21 +21,25 @@ class GtkConan(ConanFile):
         "with_wayland": [True, False],
         "with_x11": [True, False],
         "with_pango": [True, False],
+        "with_libjpeg": ["libjpeg", "libjpeg-turbo"],
         "with_ffmpeg": [True, False],
         "with_gstreamer": [True, False],
         "with_cups": [True, False],
-        "with_cloudprint": [True, False]
-        }
+        "with_cloudprint": [True, False],
+        "with_vulkan": [True, False]
+    }
     default_options = {
         "shared": False,
         "fPIC": True,
         "with_wayland": False,
         "with_x11": True,
         "with_pango": True,
+        "with_libjpeg": "libjpeg",
         "with_ffmpeg": False,
         "with_gstreamer": False,
         "with_cups": False,
-        "with_cloudprint": False
+        "with_cloudprint": False,
+        "with_vulkan": False
     }
 
     short_paths = True
@@ -74,6 +78,9 @@ class GtkConan(ConanFile):
         if self.settings.os != "Linux":
             del self.options.with_wayland
             del self.options.with_x11
+        if self._gtk3:
+            del self.options.with_libjpeg
+            del self.options.with_vulkan
 
     def validate(self):
         if self.settings.compiler == "gcc" and tools.Version(self.settings.compiler.version) < "5":
@@ -117,7 +124,10 @@ class GtkConan(ConanFile):
             self.requires("fribidi/1.0.12")
             self.requires("libpng/1.6.37")
             self.requires("libtiff/4.3.0")
-            self.requires("libjpeg/9d")
+            if self.options.with_libjpeg == "libjpeg":
+                self.requires("libjpeg/9d")
+            elif self.options.with_libjpeg == "libjpeg-turbo":
+                self.requires("libjpeg-turbo/2.1.2")
         if self.settings.os == "Linux":
             if self._gtk4:
                 self.requires("xkbcommon/1.4.1")
@@ -138,6 +148,8 @@ class GtkConan(ConanFile):
             self.requires("ffmpeg/5.0")
         if self.options.with_gstreamer:
             self.requires("gstreamer/1.19.2")
+        if self.options.with_vulkan:
+            self.requires("vulkan-headers/1.3.224.0");
 
     def source(self):
         tools.get(**self.conan_data["sources"][self.version], strip_root=True, destination=self._source_subfolder)
@@ -165,6 +177,7 @@ class GtkConan(ConanFile):
             defs["print-cups"] = enabled_disabled(self.options.with_cups)
             if tools.Version(self.version) < "4.3.2":
                 defs["print-cloudprint"] = enabled_disabled(self.options.with_cloudprint)
+            defs["vulkan"] = enabled_disabled(self.options.with_vulkan)
         args=[]
         args.append("--wrap-mode=nofallback")
         meson.configure(defs=defs, build_folder=self._build_subfolder, source_folder=self._source_subfolder, pkg_config_paths=[self.install_folder], args=args)
